@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipVault - Smart Clipboard Manager</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <h1>ClipVault</h1>
+            <nav>
+                <button onclick="loadClips('All')" class="nav-btn active" id="btn-All">All Clips</button>
+                <button onclick="loadClips('URL')" class="nav-btn" id="btn-URL">URLs</button>
+                <button onclick="loadClips('Email')" class="nav-btn" id="btn-Email">Emails</button>
+                <button onclick="loadClips('Contact Number')" class="nav-btn" id="btn-Contact-Number">Numbers</button>
+                <button onclick="loadClips('Code')" class="nav-btn" id="btn-Code">Code</button>
+            </nav>
+            <button onclick="clearHistory()" class="clear-btn">Clear History</button>
+        </aside>
+
+        <main class="main-content">
+            <input type="text" id="search-bar" placeholder="Search clipboard history..." oninput="loadClips()">
+            <div id="clips-container" class="clips-container"></div>
+        </main>
+    </div>
+
+    <script>
+        let currentCategory = 'All';
+
+        async function loadClips(category = null) {
+            if (category) {
+                currentCategory = category;
+                document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+                
+                const btnId = category.replace(' ', '-');
+                const activeBtn = document.getElementById(`btn-${btnId}`);
+                if (activeBtn) activeBtn.classList.add('active');
+            }
+
+            const search = document.getElementById('search-bar').value;
+            const response = await fetch(`/api/clips?category=${encodeURIComponent(currentCategory)}&search=${encodeURIComponent(search)}`);
+            const clips = await response.json();
+            
+            const container = document.getElementById('clips-container');
+            container.innerHTML = '';
+
+            if (clips.length === 0) {
+                container.innerHTML = '<p class="no-clips">No clips found.</p>';
+                return;
+            }
+
+            clips.forEach(clip => {
+                const card = document.createElement('div');
+                card.className = 'clip-card';
+                
+                const categoryClass = clip.category.toLowerCase().replace(' ', '-');
+                const safeContent = clip.content.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                card.innerHTML = `
+                    <div class="clip-header">
+                        <span class="clip-category ${categoryClass}">${clip.category}</span>
+                        <span class="clip-time">${clip.timestamp}</span>
+                    </div>
+                    <div class="clip-content">${clip.content}</div>
+                    <button class="copy-btn" onclick="copyText(this, '${safeContent}')">Copy Again</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function copyText(btn, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                btn.innerText = "Copied!";
+                setTimeout(() => btn.innerText = "Copy Again", 1500);
+            });
+        }
+
+        async function clearHistory() {
+            if (confirm("Are you sure you want to delete ALL history?")) {
+                await fetch('/api/clear', { method: 'POST' });
+                loadClips('All');
+            }
+        }
+
+        setInterval(() => loadClips(), 3000);
+        loadClips('All');
+    </script>
+</body>
+</html>
